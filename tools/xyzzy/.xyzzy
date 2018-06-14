@@ -1,0 +1,174 @@
+;; ライブラリ
+(load-library "elisp")
+(load-library "makefile-mode")
+(load-library "py-mode")
+(load-library "ruby-mode")
+(load-library "markdown-mode")
+(load-library "bash-mode")
+(require "migemo")
+
+; gtags 用
+(export 'ed::gtags-mode "ed")
+(autoload 'ed::gtags-mode "gtags/gtags" t)
+(require "gtags/gtags-menu")
+
+; キーカスタマイズ
+;;インクリメンタルサーチ
+(require "isearch")
+
+;;C-/でもundo
+(global-set-key #\C-z 'undo)
+(global-set-key #\C-/ 'undo)
+(global-set-key #\C-\\ 'redo)
+;;C-oでIME
+(global-set-key #\C-o 'toggle-ime)
+;;Home,Endの扱いをWindows風に
+(global-set-key #\Home 'beginning-of-line)
+(global-set-key #\S-Home 'selection-beginning-of-line)
+(global-set-key #\C-Home 'beginning-of-buffer)
+(global-set-key #\C-S-Home 'selection-beginning-of-buffer)
+(global-set-key #\End 'end-of-line)
+(global-set-key #\S-End 'selection-end-of-line)
+(global-set-key #\C-End 'end-of-buffer)
+(global-set-key #\C-S-End 'selection-end-of-buffer)
+;; PageUp・PageDown で文頭・文末までカーソル移動
+(setq *page-scroll-keep-window-position* nil)
+;;ついでにCtrl→,Ctrl←を単語移動に
+(global-set-key #\C-Left 'previous-word)
+(global-set-key #\C-Right 'next-word)
+;; ウィンドウを左右に分割
+(define-key ctl-x-map #\3 'split-window-vertically)
+;; c-7で関数リスト
+(global-set-key #\c-7 #'list-function)
+;; テスト用
+(global-set-key #\C-\; 'my-insert-date)
+;; ショートカット
+(global-set-key #\C-9 'grep-dialog)
+
+
+; モード設定
+;; Python
+(push '("\\.py$" . py-mode) *auto-mode-alist*)
+;; Ruby
+(push '("\\.rb$" . ruby-mode) *auto-mode-alist*)
+;; Makefile
+(push '("makefile\\|\\.mak$" . elisp::makefile-mode) *auto-mode-alist*)
+(push '("Makefile\\|\\.mk$"  . elisp::makefile-mode) *auto-mode-alist*)
+;; Lisp
+(push '("\\.l$" . lisp-mode) *auto-mode-alist*)
+(push '("\\.xyzzy$" . lisp-mode) *auto-mode-alist*)
+;; Markdown
+(push '("\\.md$" . markdown-mode) *auto-mode-alist*)
+;; bashmode
+(push '("\\.sh$" . bash-mode) *auto-mode-alist*)
+
+; 動作設定
+;; バッファが重複しないように変更する
+(setq elisp::uniquify-buffer-name-style 'elisp::post-forward-angle-brackets)
+;;デフォルトディレクトリ
+(set-default-directory "C:/Users/0000130230/Desktop/")
+;;デフォルトバックアップファイルの場所
+(require "backup")
+(setq *backup-directory* "~/xyzzybackup/")
+(setq *hierarchic-backup-directory* t)
+;; 「勝手に変えました。どうしますか？」を自動で読込み
+(setq-default verify-visited-file-modtime :auto)
+;; シンボリックリンクの編集時にリンクを切らない
+(setf backup-by-copying t)
+
+;; migemoをデフォルトに
+;(migemo-toggle t)
+
+;; エンコード切り替えコマンド
+(defvar *encoding-menu* nil)
+(defun encoding-menu ()
+  (or *encoding-menu*
+      (let ((menu (create-popup-menu)))
+        (mapc #'(lambda (x)
+                  (add-menu-item menu nil (car x)
+                                 #'(lambda ()
+                                     (interactive)
+                                     (revert-buffer (cdr x)))))
+              `(("utf-8n \t(&U)" . ,*encoding-utf8n*)
+                ("sjis   \t(&S)" . ,*encoding-sjis*)
+                ("euc-jp \t(&E)" . ,*encoding-euc-jp*)
+                ("auto   \t(&A)" . ,*encoding-auto*)
+                ("jis    \t(&J)" . ,*encoding-jis*)
+                ("utf-16 \t(&6)" . ,*encoding-utf16*)))
+        (add-menu-item menu :select "Select More\t(&_)"
+                       #'(lambda (encoding)
+                           (interactive "zEncoding: ")
+                           (revert-buffer encoding)))
+        (setq *encoding-menu* menu))))
+(defun revert-buffer-encoding-popup2 ()
+  (interactive)
+  (track-popup-menu (encoding-menu)))
+(defun encoding-menu-in-file-autoload ()
+  (let ((filemenu (get-menu *app-menu* 'ed::file)))
+    (insert-popup-menu filemenu
+                       (1- (get-menu-position (get-menu *app-menu* 'ed::file) :above-session))
+                       (encoding-menu) "Reopen with Encoding (&G)\tC-c e")))
+(add-hook '*init-app-menus-hook* 'encoding-menu-in-file-autoload)
+(define-key ctl-x-map #\e 'revert-buffer-encoding-popup2)
+
+;;gtags
+;;; gtags-mode
+(in-package "editor")
+(setq *gtags-mode-hook*
+      #'(lambda ()
+          (local-set-key #\M-t 'gtags-find-tag)
+          (local-set-key #\M-r 'gtags-find-rtag)
+          (local-set-key #\M-s 'gtags-find-symbol)
+          (local-set-key #\M-e 'gtags-find-tag-from-here)
+          ;(local-set-key #\M-a 'gtags-pop-stack)
+          (local-set-key #\C-t 'gtags-pop-stack)
+          (local-set-key #\M-j 'gtags-find-with-grep)
+          (local-set-key #\M-c 'gtags-find-file-ext)
+          (local-set-key #\M-n 'gtags-find-next-tag)
+          (local-set-key #\M-p 'gtags-find-previous-tag)
+          (local-set-key #\M-. 'gtags-toggle-source)
+          ))
+
+(setq *gtags-select-mode-hook*
+      #'(lambda ()
+          (local-set-key #\M-a 'gtags-pop-stack)
+          (local-set-key #\PageUp 'previous-page-kept-selection)
+          (local-set-key #\PageDown 'next-page-kept-selection)
+          (local-set-key #\LBtnDown 'gtags-mouse-left-press)
+          (local-set-key #\M-n #'(lambda ()
+                                   (interactive)
+                                   (next-virtual-line)
+                                   (gtags-select-tag)))
+          (local-set-key #\M-p #'(lambda ()
+                                   (interactive)
+                                   (previous-virtual-line)
+                                   (gtags-select-tag)))
+          ))
+
+(add-hook '*c-mode-hook*
+          #'(lambda ()
+              (gtags-mode 1)
+              ;(gtags-make-complete-list);未対応
+              ))
+(add-hook '*c++-mode-hook*
+          #'(lambda ()
+              (gtags-mode 1)))
+(add-hook '*php-mode-hook*
+          #'(lambda ()
+              (gtags-mode 1)))
+(in-package "user")
+
+
+;; 閉じるときは確認
+(defun my-save-buffers-kill-emacs ()
+  (interactive)
+  (if (y-or-n-p "quit xyzzy? ")
+      (save-buffers-kill-xyzzy)))
+(global-set-key '(#\C-x #\C-c) 'my-save-buffers-kill-emacs)
+
+;; test
+(defun my-insert-date()
+  (interactive)
+  (insert (format-date-string "%Y%m%d")))
+ 
+
